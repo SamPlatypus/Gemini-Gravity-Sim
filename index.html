@@ -1,0 +1,701 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#030712">
+<meta name="description" content="Orbital Gravity Simulator: pull back and let go to launch planets, stars and black holes. Works offline.">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Gravity Sim">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<title>Orbital Gravity Simulator</title>
+<style>
+:root{
+  --bg:#030712; --panel:rgba(12,18,32,.95); --panel-2:#162033; --line:#2a3650;
+  --text:#eef2fa; --muted:#b6c2d9; --accent:#38bdf8; --accent-2:#7dd3fc;
+  --sans:system-ui,-apple-system,"Segoe UI","Helvetica Neue",Arial,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);overflow:hidden}
+body{font-family:var(--sans);color:var(--text);-webkit-user-select:none;user-select:none;
+  -webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+button,input,output{font:inherit;color:inherit}
+button{background:none;border:0;cursor:pointer;touch-action:manipulation}
+button:active{transform:scale(.96)}
+:focus-visible{outline:2px solid var(--accent-2);outline-offset:2px}
+[hidden]{display:none!important}
+
+/* welcome line */
+#welcome{position:fixed;top:calc(12px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);
+  width:max-content;max-width:calc(100% - 24px);text-align:center;pointer-events:none;
+  background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 16px;transition:opacity 1.4s}
+#welcome b{display:block;font-size:16px;font-weight:700;color:#fff}
+#welcome span{display:block;font-size:15px;font-weight:500;color:var(--accent-2);margin-top:3px}
+#welcome.gone{opacity:0}
+
+/* bottom dock: menu panel + quick row */
+#dock{position:fixed;left:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;gap:8px;
+  padding:0 12px calc(12px + env(safe-area-inset-bottom));pointer-events:none}
+#dock > *{pointer-events:auto}
+#panel{width:100%;max-width:420px;background:var(--panel);border:1px solid var(--line);border-radius:18px;
+  padding:12px;display:flex;flex-direction:column;gap:10px;box-shadow:0 12px 32px rgba(0,0,0,.5)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+.chip{display:flex;align-items:center;gap:7px;min-height:40px;padding:8px 12px;border-radius:12px;
+  background:var(--panel-2);border:1px solid var(--line);font-size:15px;font-weight:600;color:var(--muted)}
+.chip[aria-pressed="true"]{border-color:var(--accent);color:#fff;box-shadow:0 0 0 2px rgba(56,189,248,.25)}
+.dot{width:12px;height:12px;border-radius:50%;flex:none}
+.dot.hole{background:#0b0614;border:2px solid #c084fc}
+.slider{display:flex;align-items:center;gap:10px}
+.slider label{font-size:15px;font-weight:600;color:var(--muted);width:54px}
+.slider output{font-size:15px;color:#fff;min-width:50px;text-align:right;font-variant-numeric:tabular-nums}
+input[type=range]{-webkit-appearance:none;appearance:none;flex:1;min-width:0;height:32px;background:transparent;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:#2b3752}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:24px;height:24px;border-radius:50%;
+  background:var(--accent);border:3px solid #0b1220;margin-top:-9px}
+input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:#2b3752}
+input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:var(--accent);border:3px solid #0b1220}
+.btns{display:flex;flex-wrap:wrap;gap:6px}
+.btn{flex:1 1 0;min-width:84px;min-height:42px;padding:9px 10px;border-radius:12px;background:var(--panel-2);
+  border:1px solid var(--line);font-size:15px;font-weight:600;color:var(--text)}
+.btn.install{color:#6ee7b7;border-color:rgba(110,231,183,.45)}
+.foot{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:14px;color:var(--muted)}
+.foot .credit{font-size:13px}
+
+#quick{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;width:100%;max-width:420px}
+.q{min-height:46px;padding:10px 14px;border-radius:999px;background:var(--panel);border:1px solid var(--line);
+  font-size:15px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:8px;white-space:nowrap}
+#soundBtn{justify-self:end}
+#soundBtn.off{color:#6b7689;border-color:#222b3d;opacity:.65}
+#dotsBtn{width:64px;justify-content:center;font-size:22px;letter-spacing:3px;line-height:1;padding:10px 0 14px}
+#dotsBtn[aria-expanded="true"]{border-color:var(--accent)}
+#bodyBtn{justify-self:start}
+</style>
+</head>
+<body>
+
+<canvas id="sim" aria-label="Space. Pull back and let go to launch a body."></canvas>
+
+<div id="welcome">
+  <b>Welcome to the Orbital Gravity Simulator</b>
+  <span>Pull back and let go to launch.</span>
+</div>
+
+<div id="dock">
+  <div id="panel">
+    <div class="chips" id="chips"></div>
+    <div class="slider">
+      <label for="speed">Speed</label>
+      <input id="speed" type="range" min="0.25" max="3" step="0.25" value="1">
+      <output id="speedOut">1x</output>
+    </div>
+    <div class="slider">
+      <label for="glow">Glow</label>
+      <input id="glow" type="range" min="40" max="150" step="5" value="100">
+      <output id="glowOut">100%</output>
+    </div>
+    <div class="btns">
+      <button class="btn" id="pauseBtn">Pause</button>
+      <button class="btn" id="clearBtn">Clear</button>
+      <button class="btn" id="newBtn">New system</button>
+      <button class="btn install" id="installBtn" hidden>Install app</button>
+    </div>
+    <div class="foot">
+      <span id="count">Bodies: 0</span>
+      <span class="credit">by @SamAndNinjaCat</span>
+    </div>
+  </div>
+  <div id="quick">
+    <button class="q" id="soundBtn" aria-pressed="true">Sound</button>
+    <button class="q" id="dotsBtn" aria-label="Menu" aria-expanded="true">&bull;&bull;&bull;</button>
+    <button class="q" id="bodyBtn" aria-label="Body to launch, tap to change"><span class="dot" id="bodyDot"></span><span id="bodyName">Moon</span></button>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var canvas = $('sim');
+  var ctx = canvas.getContext('2d', { alpha: false });
+
+  // ---------- tuning ----------
+  var WORLD_SHORT = 520;   // world units across the short side of the screen, so every phone sees the same space
+  var G = 67;              // gravity strength (inner planet goes round in about 7 seconds at 1x)
+  var SOFT = 8, SOFT2 = SOFT * SOFT;  // stops the pull going infinite at point-blank range
+  var FLING = 0.3;         // launch speed per world unit of pull
+  var MAX_PULL = 230;      // longest pull that counts
+  var MAX_BODIES = 150;
+  var STAR_MASS = 800, HOLE_MASS = 3000;
+  var STAR_COLOR = '#fbbf24', HOLE_COLOR = '#a855f7';
+  var BG = '#030712';
+
+  var PRESETS = [
+    { key: 'dust',   name: 'Dust',       mass: 1,    radius: 4,  freq: 784 },
+    { key: 'moon',   name: 'Moon',       mass: 15,   radius: 8,  freq: 587 },
+    { key: 'planet', name: 'Planet',     mass: 100,  radius: 14, freq: 440 },
+    { key: 'star',   name: 'Star',       mass: 800,  radius: 22, freq: 330 },
+    { key: 'hole',   name: 'Black hole', mass: 3000, radius: 18, freq: 220 }
+  ];
+
+  // ---------- state ----------
+  var bodies = [], rings = [];
+  var paused = false, timeScale = 1, preset = PRESETS[1];
+  var hueN = 0;
+  var aim = null;
+  var menuOpen = true;
+  var quality = 2;          // 2 full, 1 lighter, 0 lightest (steps down by itself on slow phones)
+  var cssW = 0, cssH = 0, dpr = 1, scale = 1;
+  var stars = null;
+  var welcomeGone = false;
+
+  function save(k, v) { try { localStorage.setItem('gravsim.' + k, v); } catch (e) {} }
+  function load(k) { try { return localStorage.getItem('gravsim.' + k); } catch (e) { return null; } }
+
+  // ---------- bodies ----------
+  function kindOf(m) { return m >= HOLE_MASS ? 'hole' : m >= STAR_MASS ? 'star' : 'rock'; }
+  function holeRadius(m) { return Math.min(32, 18 * Math.cbrt(m / HOLE_MASS)); }
+  function rockColor(n) { return 'hsl(' + ((n * 137.5) % 360).toFixed(1) + ',85%,66%)'; }
+  function colorForPreset(p, n) { return p.key === 'hole' ? HOLE_COLOR : p.key === 'star' ? STAR_COLOR : rockColor(n); }
+
+  function makeBody(x, y, vx, vy, mass, radius, color) {
+    var k = kindOf(mass);
+    return { x: x, y: y, vx: vx, vy: vy, ax: 0, ay: 0, mass: mass,
+      radius: k === 'hole' ? holeRadius(mass) : radius,
+      color: k === 'hole' ? HOLE_COLOR : color, kind: k, trail: [], dead: false };
+  }
+
+  function loadDemo() {
+    bodies = []; rings = [];
+    var sunM = 2500;
+    var sun = makeBody(0, 0, 0, 0, sunM, 22, STAR_COLOR);
+    bodies.push(sun);
+    var cfg = [
+      // light planets so they don't knock each other out of orbit (stays steady for 30+ minutes)
+      { d: 58,  m: 0.5, r: 5,  c: '#38bdf8' },
+      { d: 100, m: 1.5, r: 8,  c: '#34d399' },
+      { d: 160, m: 3,   r: 12, c: '#f87171' },
+      { d: 228, m: 1.5, r: 9,  c: '#c084fc' }
+    ];
+    var px = 0, py = 0;
+    cfg.forEach(function (p, i) {
+      var a = 0.6 + i * 1.9;
+      // circular speed that matches the softened pull exactly, so orbits start round
+      var v = Math.sqrt(G * sunM * p.d * p.d / Math.pow(p.d * p.d + SOFT2, 1.5));
+      var b = makeBody(Math.cos(a) * p.d, Math.sin(a) * p.d, -Math.sin(a) * v, Math.cos(a) * v, p.m, p.r, p.c);
+      px += b.vx * b.mass; py += b.vy * b.mass;
+      bodies.push(b);
+    });
+    // balance the Sun's push so the whole system stays put instead of drifting away
+    sun.vx = -px / sunM; sun.vy = -py / sunM;
+  }
+
+  // ---------- physics ----------
+  function accelerate() {
+    var n = bodies.length, i, j, a, b, dx, dy, d2, inv;
+    for (i = 0; i < n; i++) { bodies[i].ax = 0; bodies[i].ay = 0; }
+    for (i = 0; i < n; i++) {
+      a = bodies[i];
+      for (j = i + 1; j < n; j++) {
+        b = bodies[j];
+        dx = b.x - a.x; dy = b.y - a.y;
+        d2 = dx * dx + dy * dy + SOFT2;
+        inv = G / (d2 * Math.sqrt(d2));
+        a.ax += dx * inv * b.mass; a.ay += dy * inv * b.mass;
+        b.ax -= dx * inv * a.mass; b.ay -= dy * inv * a.mass;
+      }
+    }
+  }
+
+  function step(h) {
+    accelerate();
+    for (var i = 0; i < bodies.length; i++) {
+      var b = bodies[i];
+      b.vx += b.ax * h; b.vy += b.ay * h;
+      b.x += b.vx * h; b.y += b.vy * h;
+    }
+    collide();
+  }
+
+  function collide() {
+    var n = bodies.length, removed = 0;
+    for (var i = 0; i < n; i++) {
+      var a = bodies[i];
+      if (a.dead) continue;
+      for (var j = i + 1; j < n; j++) {
+        var b = bodies[j];
+        if (b.dead) continue;
+        var dx = b.x - a.x, dy = b.y - a.y, rr = (a.radius + b.radius) * 0.9;
+        if (dx * dx + dy * dy < rr * rr) {
+          var big = a.mass >= b.mass ? a : b, small = big === a ? b : a;
+          merge(big, small);
+          small.dead = true; removed++;
+          if (small === a) break;   // a has been swallowed, so it can't touch anything else
+        }
+      }
+    }
+    if (removed) bodies = bodies.filter(function (b) { return !b.dead; });
+  }
+
+  function merge(big, small) {
+    var M = big.mass + small.mass;
+    big.x = (big.x * big.mass + small.x * small.mass) / M;
+    big.y = (big.y * big.mass + small.y * small.mass) / M;
+    big.vx = (big.vx * big.mass + small.vx * small.mass) / M;
+    big.vy = (big.vy * big.mass + small.vy * small.mass) / M;
+    big.mass = M;
+    var before = big.kind, k = kindOf(M);
+    var vol = Math.cbrt(Math.pow(big.radius, 3) + Math.pow(small.radius, 3));
+    if (k === 'hole') { big.radius = holeRadius(M); big.color = HOLE_COLOR; }
+    else if (k === 'star') { big.radius = Math.min(34, Math.max(20, vol)); big.color = STAR_COLOR; }
+    else big.radius = vol;
+    big.kind = k;
+    if (before !== k && k === 'hole') collapseFx(big);
+    else if (before !== k && k === 'star') igniteFx(big);
+    else mergeFx(big);
+  }
+
+  // ---------- little flashes ----------
+  function mergeFx(b) {
+    if (quality > 0) rings.push({ x: b.x, y: b.y, r0: b.radius, r1: b.radius * 2.2, t: 0, dur: 0.5, color: b.color, w: 2 });
+    sndMerge(b.mass);
+  }
+  function igniteFx(b) {
+    rings.push({ x: b.x, y: b.y, r0: b.radius, r1: b.radius * 4, t: 0, dur: 1.2, color: STAR_COLOR, w: 3 });
+    sndIgnite();
+  }
+  function collapseFx(b) {
+    rings.push({ x: b.x, y: b.y, r0: b.radius * 5, r1: b.radius, t: 0, dur: 1.4, color: '#c084fc', w: 3 });
+    rings.push({ x: b.x, y: b.y, r0: b.radius, r1: b.radius * 6, t: 0, dur: 1.8, color: '#c084fc', w: 2 });
+    sndCollapse();
+  }
+
+  // ---------- sound (soft, modest) ----------
+  var actx = null, master = null, muted = load('sound') === 'off', lastMergeSnd = 0;
+  function wakeAudio() {
+    if (!actx) {
+      try {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        actx = new AC();
+        var comp = actx.createDynamicsCompressor();
+        master = actx.createGain();
+        master.gain.value = muted ? 0 : 0.9;
+        master.connect(comp); comp.connect(actx.destination);
+      } catch (e) { actx = null; return; }
+    }
+    if (actx.state === 'suspended') actx.resume().catch(function () {});
+  }
+  function tone(freq, o) {
+    if (!actx || muted || actx.state !== 'running') return;
+    o = o || {};
+    var attack = o.attack || 0.01, decay = o.decay || 0.6, peak = o.peak || 0.06;
+    var t = actx.currentTime + (o.delay || 0);
+    var osc = actx.createOscillator(), g = actx.createGain();
+    osc.type = o.type || 'sine';
+    osc.frequency.setValueAtTime(freq, t);
+    if (o.glideTo) osc.frequency.exponentialRampToValueAtTime(o.glideTo, t + attack + decay);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + attack + decay);
+    osc.connect(g); g.connect(master);
+    osc.start(t); osc.stop(t + attack + decay + 0.05);
+  }
+  function sndLaunch(p) { tone(p.freq, { attack: 0.02, decay: 0.35, peak: 0.06, glideTo: p.freq * 0.8 }); }
+  function sndMerge(mass) {
+    if (!actx) return;
+    var now = actx.currentTime;
+    if (now - lastMergeSnd < 0.12) return;
+    lastMergeSnd = now;
+    var f = 880 / (1 + Math.log10(Math.max(1, mass)) * 0.7);
+    tone(f, { attack: 0.005, decay: 0.9, peak: 0.05 });
+    tone(f * 2.01, { attack: 0.005, decay: 0.5, peak: 0.015 });
+  }
+  function sndIgnite() {
+    tone(392, { attack: 0.25, decay: 1.4, peak: 0.045 });
+    tone(587, { attack: 0.3, decay: 1.3, peak: 0.03 });
+  }
+  function sndCollapse() {
+    tone(330, { attack: 0.4, decay: 1.6, peak: 0.06, glideTo: 110 });
+    tone(165, { type: 'triangle', attack: 0.5, decay: 1.6, peak: 0.04, glideTo: 82 });
+  }
+  function setMuted(m) {
+    muted = m;
+    save('sound', m ? 'off' : 'on');
+    var btn = $('soundBtn');
+    btn.classList.toggle('off', m);
+    btn.setAttribute('aria-pressed', String(!m));
+    if (actx && master) master.gain.setTargetAtTime(m ? 0 : 0.9, actx.currentTime, 0.05);
+  }
+
+  // ---------- screen and space ----------
+  function resize() {
+    cssW = window.innerWidth; cssH = window.innerHeight;
+    var cap = quality === 2 ? 2 : quality === 1 ? 1.5 : 1;
+    dpr = Math.min(window.devicePixelRatio || 1, cap);
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    scale = Math.min(cssW, cssH) / WORLD_SHORT;
+    makeStars();
+  }
+
+  function makeStars() {
+    stars = document.createElement('canvas');
+    stars.width = canvas.width; stars.height = canvas.height;
+    var s = stars.getContext('2d');
+    var seed = 20261106;
+    function rnd() { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }
+    var count = Math.min(380, Math.round(cssW * cssH / 2400));
+    for (var i = 0; i < count; i++) {
+      var x = rnd() * stars.width, y = rnd() * stars.height;
+      var r = (0.35 + rnd() * rnd() * 1.1) * dpr;
+      var tint = rnd();
+      s.globalAlpha = 0.25 + rnd() * 0.55;
+      s.fillStyle = tint < 0.15 ? '#bfdbfe' : tint > 0.9 ? '#fde68a' : '#e5e7eb';
+      s.beginPath(); s.arc(x, y, r, 0, Math.PI * 2); s.fill();
+    }
+  }
+
+  function toWorld(e) { return { x: (e.clientX - cssW / 2) / scale, y: (e.clientY - cssH / 2) / scale }; }
+  function px(n) { return n / scale; }   // screen pixels to world units
+
+  // ---------- drawing ----------
+  function drawTrail(b) {
+    var t = b.trail;
+    if (t.length < 4) return;
+    var half = (t.length >> 2) << 1;
+    ctx.strokeStyle = b.color;
+    ctx.lineWidth = Math.max(px(1), b.radius * 0.28);
+    ctx.lineJoin = 'round';
+    ctx.globalAlpha = 0.14;
+    ctx.beginPath(); ctx.moveTo(t[0], t[1]);
+    for (var i = 2; i <= half; i += 2) ctx.lineTo(t[i], t[i + 1]);
+    ctx.stroke();
+    ctx.globalAlpha = 0.34;
+    ctx.beginPath(); ctx.moveTo(t[half], t[half + 1]);
+    for (i = half + 2; i < t.length; i += 2) ctx.lineTo(t[i], t[i + 1]);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  function glow(x, y, r0, r1, color, alpha) {
+    if (quality > 0) {
+      var g = ctx.createRadialGradient(x, y, r0, x, y, r1);
+      g.addColorStop(0, color); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.globalAlpha = alpha; ctx.fillStyle = g;
+    } else {
+      ctx.globalAlpha = alpha * 0.35; ctx.fillStyle = color;
+    }
+    ctx.beginPath(); ctx.arc(x, y, r1, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  function drawBody(b) {
+    var r = Math.max(px(2), b.radius);
+    if (b.kind === 'star') {
+      glow(b.x, b.y, r * 0.6, r * 2.6, STAR_COLOR, 0.55);
+      ctx.fillStyle = '#fcd34d';
+      ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,251,235,.55)';
+      ctx.beginPath(); ctx.arc(b.x, b.y, r * 0.55, 0, Math.PI * 2); ctx.fill();
+    } else if (b.kind === 'hole') {
+      glow(b.x, b.y, r * 0.9, r * 2.4, '#a855f7', 0.5);
+      ctx.fillStyle = '#05030a';
+      ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, Math.PI * 2); ctx.fill();
+      ctx.lineWidth = Math.max(px(2), r * 0.16);
+      ctx.strokeStyle = '#c084fc'; ctx.stroke();
+    } else {
+      ctx.fillStyle = b.color;
+      ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, Math.PI * 2); ctx.fill();
+      if (quality > 0 && r > px(3)) {
+        ctx.fillStyle = 'rgba(255,255,255,.3)';
+        ctx.beginPath(); ctx.arc(b.x - r * 0.3, b.y - r * 0.3, r * 0.32, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+  }
+
+  function drawRings() {
+    for (var i = 0; i < rings.length; i++) {
+      var g = rings[i], k = g.t / g.dur;
+      ctx.globalAlpha = 0.6 * (1 - k);
+      ctx.strokeStyle = g.color;
+      ctx.lineWidth = px(g.w);
+      ctx.beginPath(); ctx.arc(g.x, g.y, g.r0 + (g.r1 - g.r0) * k, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function pullOf(a) {
+    var x = a.sx - a.cx, y = a.sy - a.cy, L = Math.hypot(x, y);
+    if (L > MAX_PULL) { x *= MAX_PULL / L; y *= MAX_PULL / L; L = MAX_PULL; }
+    return { x: x, y: y, len: L };
+  }
+
+  function drawAim() {
+    var p = pullOf(aim);
+    var hx = aim.sx - p.x, hy = aim.sy - p.y;   // where the band is held (finger, clamped)
+    // elastic band
+    ctx.strokeStyle = 'rgba(148,163,184,.75)';
+    ctx.lineWidth = px(2);
+    ctx.beginPath(); ctx.moveTo(aim.sx, aim.sy); ctx.lineTo(hx, hy); ctx.stroke();
+    ctx.fillStyle = 'rgba(148,163,184,.9)';
+    ctx.beginPath(); ctx.arc(hx, hy, px(4), 0, Math.PI * 2); ctx.fill();
+
+    // where it will go
+    if (p.len > px(6)) {
+      var x = aim.sx, y = aim.sy, vx = p.x * FLING, vy = p.y * FLING;
+      var steps = quality > 0 ? 110 : 60, h = 2.4 / steps, r = preset.radius;
+      ctx.fillStyle = aim.color;
+      for (var k = 1; k <= steps; k++) {
+        var ax = 0, ay = 0, hit = false;
+        for (var i = 0; i < bodies.length; i++) {
+          var b = bodies[i], dx = b.x - x, dy = b.y - y, rr = (b.radius + r) * 0.9;
+          if (dx * dx + dy * dy < rr * rr) { hit = true; break; }
+          var d2 = dx * dx + dy * dy + SOFT2, inv = G * b.mass / (d2 * Math.sqrt(d2));
+          ax += dx * inv; ay += dy * inv;
+        }
+        if (hit) break;
+        vx += ax * h; vy += ay * h; x += vx * h; y += vy * h;
+        if (k % 3 === 0) {
+          ctx.globalAlpha = 0.75 * (1 - k / steps);
+          ctx.beginPath(); ctx.arc(x, y, px(1.8), 0, Math.PI * 2); ctx.fill();
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // the body waiting to go
+    var pr = preset.key === 'hole' ? holeRadius(preset.mass) : preset.radius;
+    ctx.fillStyle = preset.key === 'hole' ? '#05030a' : aim.color;
+    ctx.beginPath(); ctx.arc(aim.sx, aim.sy, pr, 0, Math.PI * 2); ctx.fill();
+    ctx.lineWidth = px(1.5);
+    ctx.strokeStyle = preset.key === 'hole' ? '#c084fc' : '#ffffff';
+    ctx.stroke();
+  }
+
+  function render() {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = BG;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if (stars) ctx.drawImage(stars, 0, 0);
+    var k = dpr * scale;
+    ctx.setTransform(k, 0, 0, k, canvas.width / 2, canvas.height / 2);
+    var i;
+    for (i = 0; i < bodies.length; i++) drawTrail(bodies[i]);
+    for (i = 0; i < bodies.length; i++) drawBody(bodies[i]);
+    drawRings();
+    if (aim) drawAim();
+  }
+
+  // ---------- main loop ----------
+  var TRAIL_LEN = [20, 45, 90];
+  var last = performance.now(), frameNo = 0;
+  var perfSum = 0, perfN = 0, slowStreak = 0, warmup = 2;
+
+  function watchPerf(raw) {
+    if (document.hidden) return;
+    perfSum += raw; perfN++;
+    if (perfSum < 1) return;
+    var fps = perfN / perfSum;
+    perfSum = 0; perfN = 0;
+    if (warmup > 0) { warmup--; return; }
+    slowStreak = fps < 44 ? slowStreak + 1 : 0;
+    if (slowStreak >= 2 && quality > 0) {   // frame-rate step-down for budget phones
+      quality--; slowStreak = 0; warmup = 2;
+      resize();
+    }
+  }
+
+  function recordTrails() {
+    var max = TRAIL_LEN[quality] * 2;
+    for (var i = 0; i < bodies.length; i++) {
+      var t = bodies[i].trail;
+      t.push(bodies[i].x, bodies[i].y);
+      if (t.length > max) t.splice(0, t.length - max);
+    }
+  }
+
+  function cleanup() {
+    // anything flung far beyond the screen is let go, so it stops costing the phone work
+    var lim = Math.max(cssW, cssH) / scale + 200;
+    var before = bodies.length;
+    bodies = bodies.filter(function (b) { return Math.abs(b.x) < lim && Math.abs(b.y) < lim; });
+    return before !== bodies.length;
+  }
+
+  function frame(now) {
+    var raw = (now - last) / 1000;
+    last = now;
+    if (raw > 0.25 || raw < 0) raw = 1 / 60;
+    watchPerf(raw);
+
+    if (!paused) {
+      var dt = Math.min(raw, 0.05) * timeScale;
+      var maxH = quality === 0 ? 0.007 : 0.0045;
+      var sub = Math.min(14, Math.max(2, Math.ceil(dt / maxH)));
+      var h = dt / sub;
+      for (var s = 0; s < sub; s++) step(h);
+      recordTrails();
+    }
+    for (var i = rings.length - 1; i >= 0; i--) {
+      rings[i].t += raw;
+      if (rings[i].t >= rings[i].dur) rings.splice(i, 1);
+    }
+    if (++frameNo % 30 === 0) {
+      cleanup();
+      if (menuOpen) $('count').textContent = 'Bodies: ' + bodies.length;
+    }
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- launching ----------
+  function launch() {
+    var p = pullOf(aim);
+    var tiny = p.len < px(6);   // a plain tap drops the body still
+    var vx = tiny ? 0 : p.x * FLING, vy = tiny ? 0 : p.y * FLING;
+    var color = colorForPreset(preset, hueN);
+    if (preset.key !== 'hole' && preset.key !== 'star') hueN++;
+    if (bodies.length >= MAX_BODIES) {
+      var idx = -1;
+      for (var i = 0; i < bodies.length; i++) if (bodies[i].kind === 'rock') { idx = i; break; }
+      bodies.splice(idx < 0 ? 0 : idx, 1);
+    }
+    bodies.push(makeBody(aim.sx, aim.sy, vx, vy, preset.mass, preset.radius, color));
+    sndLaunch(preset);
+    if (!welcomeGone) {
+      welcomeGone = true;
+      var w = $('welcome');
+      w.classList.add('gone');
+      setTimeout(function () { w.hidden = true; }, 1500);
+    }
+  }
+
+  canvas.addEventListener('pointerdown', function (e) {
+    wakeAudio();
+    if (menuOpen) { setMenu(false); e.preventDefault(); return; }   // first tap folds the menu
+    if (aim || !e.isPrimary) return;
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+    var w = toWorld(e);
+    aim = { id: e.pointerId, sx: w.x, sy: w.y, cx: w.x, cy: w.y, color: colorForPreset(preset, hueN) };
+  });
+  canvas.addEventListener('pointermove', function (e) {
+    if (!aim || e.pointerId !== aim.id) return;
+    var w = toWorld(e);
+    aim.cx = w.x; aim.cy = w.y;
+  });
+  canvas.addEventListener('pointerup', function (e) {
+    if (!aim || e.pointerId !== aim.id) return;
+    var w = toWorld(e);
+    aim.cx = w.x; aim.cy = w.y;
+    launch();
+    aim = null;
+  });
+  function cancelAim(e) { if (aim && e.pointerId === aim.id) aim = null; }
+  canvas.addEventListener('pointercancel', cancelAim);
+  canvas.addEventListener('lostpointercapture', cancelAim);
+
+  // ---------- menu and controls ----------
+  function setMenu(open) {
+    menuOpen = open;
+    $('panel').hidden = !open;
+    $('dotsBtn').setAttribute('aria-expanded', String(open));
+    if (open) $('count').textContent = 'Bodies: ' + bodies.length;
+  }
+
+  function dotStyle(el, p) {
+    el.className = 'dot' + (p.key === 'hole' ? ' hole' : '');
+    el.style.background = p.key === 'hole' ? '' : p.key === 'star' ? STAR_COLOR : p.key === 'dust' ? '#c4b5fd' : p.key === 'moon' ? '#93c5fd' : '#6ee7b7';
+  }
+
+  var chipsEl = $('chips');
+  PRESETS.forEach(function (p) {
+    var b = document.createElement('button');
+    b.className = 'chip'; b.dataset.key = p.key;
+    var d = document.createElement('span'); dotStyle(d, p);
+    b.appendChild(d); b.appendChild(document.createTextNode(p.name));
+    b.addEventListener('click', function () { setPreset(p); });
+    chipsEl.appendChild(b);
+  });
+
+  function setPreset(p) {
+    preset = p;
+    Array.prototype.forEach.call(chipsEl.children, function (c) {
+      c.setAttribute('aria-pressed', String(c.dataset.key === p.key));
+    });
+    dotStyle($('bodyDot'), p);
+    $('bodyName').textContent = p.name;
+  }
+
+  $('bodyBtn').addEventListener('click', function () {
+    setPreset(PRESETS[(PRESETS.indexOf(preset) + 1) % PRESETS.length]);
+  });
+  $('dotsBtn').addEventListener('click', function () { setMenu(!menuOpen); });
+  $('soundBtn').addEventListener('click', function () { setMuted(!muted); });
+  document.addEventListener('pointerdown', wakeAudio, { capture: true });
+
+  $('pauseBtn').addEventListener('click', function () {
+    paused = !paused;
+    this.textContent = paused ? 'Play' : 'Pause';
+  });
+  $('clearBtn').addEventListener('click', function () { bodies = []; rings = []; $('count').textContent = 'Bodies: 0'; });
+  $('newBtn').addEventListener('click', function () { loadDemo(); $('count').textContent = 'Bodies: ' + bodies.length; });
+
+  $('speed').addEventListener('input', function () {
+    timeScale = parseFloat(this.value);
+    $('speedOut').textContent = (Math.round(timeScale * 100) / 100) + 'x';
+  });
+
+  function setGlow(v) {
+    $('glow').value = v;
+    $('glowOut').textContent = v + '%';
+    canvas.style.filter = v === 100 ? '' : 'brightness(' + (v / 100) + ')';
+  }
+  $('glow').addEventListener('input', function () {
+    var v = parseInt(this.value, 10);
+    setGlow(v); save('glow', String(v));
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === ' ' && e.target === document.body) { e.preventDefault(); $('pauseBtn').click(); }
+  });
+
+  document.addEventListener('visibilitychange', function () {
+    if (!actx) return;
+    if (document.hidden) actx.suspend().catch(function () {});
+    else actx.resume().catch(function () {});
+  });
+
+  // install as an app
+  var installEvt = null;
+  window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); installEvt = e; $('installBtn').hidden = false; });
+  $('installBtn').addEventListener('click', function () {
+    if (!installEvt) return;
+    installEvt.prompt(); installEvt = null; $('installBtn').hidden = true;
+  });
+  window.addEventListener('appinstalled', function () { $('installBtn').hidden = true; });
+
+  // ---------- start ----------
+  window.addEventListener('resize', resize);
+  resize();
+  setPreset(preset);
+  setMuted(muted);
+  var g = parseInt(load('glow'), 10);
+  setGlow(g >= 40 && g <= 150 ? g : 100);
+  loadDemo();
+  setMenu(true);
+  requestAnimationFrame(function (t) { last = t; frame(t); });
+
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+  }
+})();
+</script>
+</body>
+</html>
